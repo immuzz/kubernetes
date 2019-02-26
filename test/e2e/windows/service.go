@@ -21,13 +21,15 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	"k8s.io/kubernetes/pkg/securitycontext"
 	"k8s.io/kubernetes/test/e2e/framework"
-	"k8s.io/apimachinery/pkg/types"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -53,7 +55,6 @@ var (
 	}
 )
 
-
 func CreateValidPod(name, namespace string) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -76,7 +77,6 @@ func CreateValidPod(name, namespace string) *v1.Pod {
 		},
 	}
 }
-
 
 var _ = SIGDescribe("Services", func() {
 	f := framework.NewDefaultFramework("services")
@@ -122,11 +122,10 @@ var _ = SIGDescribe("Services", func() {
 		By("creating pod to be part of service " + serviceName)
 		jig.RunOrFail(ns, nil)
 
-
 		By("creating testing pod")
 		testingPod := CreateValidPod("nanotest", ns)
-		curl := fmt.Sprintf("curl.exe -s -o /dev/null -w \"%{http_code}\" http://%v:%v",nodeIP, nodePort)
-		cmd := []string{"cmd","/c", curl}
+		curl := fmt.Sprintf("curl.exe -s -o /dev/null -w \"%{http_code}\" http://%v:%v", nodeIP, nodePort)
+		cmd := []string{"cmd", "/c", curl}
 		stdout, stderr, err := f.ExecCommandInContainerWithFullOutput("nanotest", "nanotest", cmd...)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(stdout).To(Equal("200"))
