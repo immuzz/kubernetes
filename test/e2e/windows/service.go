@@ -23,7 +23,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/pkg/securitycontext"
 	"k8s.io/kubernetes/test/e2e/framework"
 
@@ -79,27 +78,6 @@ func CreateValidPod(name, namespace string) *v1.Pod {
 
 var _ = SIGDescribe("Services", func() {
 	f := framework.NewDefaultFramework("services")
-
-	var cs clientset.Interface
-	var internalClientset internalclientset.Interface
-	serviceLBNames := []string{}
-
-	BeforeEach(func() {
-		cs = f.ClientSet
-		internalClientset = f.InternalClientset
-	})
-
-	AfterEach(func() {
-		if CurrentGinkgoTestDescription().Failed {
-			framework.DescribeSvc(f.Namespace.Name)
-		}
-		for _, lb := range serviceLBNames {
-			framework.Logf("cleaning load balancer resource for %s", lb)
-			framework.CleanupServiceResources(cs, lb, framework.TestContext.CloudConfig.Region, framework.TestContext.CloudConfig.Zone)
-		}
-		//reset serviceLBNames
-		serviceLBNames = []string{}
-	})
 
 	// TODO: Run this test against the userspace proxy and nodes
 	// configured with a default deny firewall to validate that the
