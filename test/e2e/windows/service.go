@@ -87,7 +87,7 @@ var _ = SIGDescribe("Services", func() {
 	// TODO: Run this test against the userspace proxy and nodes
 	// configured with a default deny firewall to validate that the
 	// proxy whitelists NodePort traffic.
-	It("should be able to create a functioning NodePort service", func() {
+	It("should be able to create a functioning NodePort service for Windows", func() {
 		serviceName := "nodeport-test"
 		ns := f.Namespace.Name
 
