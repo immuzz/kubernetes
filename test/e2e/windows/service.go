@@ -125,15 +125,11 @@ var _ = SIGDescribe("Services", func() {
 		By("creating testing pod")
 		testingPod := CreateValidPod("nanotest", ns)
 		curl := fmt.Sprintf("curl.exe -s -o /dev/null -w \"%{http_code}\" http://%v:%v",nodeIP, nodePort)
-		cmd := []string{"cmd", "/c", curl}
-    	stdout, stderr, err := f.ExecCommandInContainerWithFullOutput("nanotest", "nanotest", cmd...)
-		
+		cmd := []string{"cmd","/c", curl}
+		stdout, stderr, err := f.ExecCommandInContainerWithFullOutput("nanotest", "nanotest", cmd...)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(stdout).To(Equal("200"))
 
-		
 	})
-
-	
 
 })
