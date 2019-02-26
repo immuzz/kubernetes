@@ -52,12 +52,30 @@ var (
 	}
 )
 
-func getServeHostnameService(name string) *v1.Service {
-	svc := defaultServeHostnameService.DeepCopy()
-	svc.ObjectMeta.Name = name
-	svc.Spec.Selector["name"] = name
-	return svc
+
+func CreateValidPod(name, namespace string) *v1.Pod {
+	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       types.UID(name + namespace), // for the purpose of testing, this is unique enough
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1.PodSpec{
+			RestartPolicy: v1.RestartPolicyAlways,
+			DNSPolicy:     v1.DNSClusterFirst,
+			Containers: []v1.Container{
+				{
+					Name:                     "nanotest",
+					Image:                    "microsoft/nanoserver:latest",
+					ImagePullPolicy:          "IfNotPresent",
+					SecurityContext:          securitycontext.ValidSecurityContextWithContainerDefaults(),
+					TerminationMessagePolicy: v1.TerminationMessageReadFile,
+				},
+			},
+		},
+	}
 }
+
 
 var _ = SIGDescribe("Services", func() {
 	f := framework.NewDefaultFramework("services")
@@ -103,18 +121,19 @@ var _ = SIGDescribe("Services", func() {
 		By("creating pod to be part of service " + serviceName)
 		jig.RunOrFail(ns, nil)
 
-		By("hitting the pod through the service's NodePort")
-		jig.TestReachableHTTP(nodeIP, nodePort, framework.KubeProxyLagTimeout)
 
-		By("verifying the node port is locked")
-		hostExec := framework.LaunchHostExecPod(f.ClientSet, f.Namespace.Name, "hostexec")
-		// Even if the node-ip:node-port check above passed, this hostexec pod
-		// might fall on a node with a laggy kube-proxy.
-		cmd := fmt.Sprintf(`for i in $(seq 1 300); do if ss -ant46 'sport = :%d' | grep ^LISTEN; then exit 0; fi; sleep 1; done; exit 1`, nodePort)
-		stdout, err := framework.RunHostCmd(hostExec.Namespace, hostExec.Name, cmd)
-		if err != nil {
-			framework.Failf("expected node port %d to be in use, stdout: %v. err: %v", nodePort, stdout, err)
-		}
+		By("creating testing pod")
+		testingPod := CreateValidPod("nanotest", ns)
+		curl := fmt.Sprintf("curl.exe -s -o /dev/null -w \"%{http_code}\" http://%v:%v",nodeIP, nodePort)
+		cmd := []string{"cmd", "/c", curl}
+    	stdout, stderr, err := f.ExecCommandInContainerWithFullOutput("nanotest", "nanotest", cmd...)
+		
+		Expect(err).NotTo(HaveOccurred())
+		Expect(stdout).To(Equal("200"))
+
+		
 	})
+
+	
 
 })
