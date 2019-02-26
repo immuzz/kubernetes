@@ -79,6 +79,8 @@ func CreateValidPod(name, namespace string) *v1.Pod {
 var _ = SIGDescribe("Services", func() {
 	f := framework.NewDefaultFramework("services")
 
+	var cs clientset.Interface
+	
 	BeforeEach(func() {
 		cs = f.ClientSet
 	})
