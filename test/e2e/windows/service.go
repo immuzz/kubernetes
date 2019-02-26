@@ -79,6 +79,10 @@ func CreateValidPod(name, namespace string) *v1.Pod {
 var _ = SIGDescribe("Services", func() {
 	f := framework.NewDefaultFramework("services")
 
+	BeforeEach(func() {
+		cs = f.ClientSet
+	})
+
 	// TODO: Run this test against the userspace proxy and nodes
 	// configured with a default deny firewall to validate that the
 	// proxy whitelists NodePort traffic.
