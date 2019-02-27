@@ -18,11 +18,10 @@ package windows
 
 import (
 	"fmt"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/pkg/securitycontext"
 	"k8s.io/kubernetes/test/e2e/framework"
@@ -32,50 +31,33 @@ import (
 )
 
 const (
-	defaultServeHostnameServicePort = 80
-	defaultServeHostnameServiceName = "svc-hostname"
+	defaultCmd          = "curl.exe -s -o 127.0.0.1"
+	defaultWindowsImage = "mcr.microsoft.com/windows/nanoserver:1809"
 )
 
 var (
-	defaultServeHostnameService = v1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaultServeHostnameServiceName,
+	defaultWindowsPod = &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
 		},
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{{
-				Port:       int32(defaultServeHostnameServicePort),
-				TargetPort: intstr.FromInt(9376),
-				Protocol:   v1.ProtocolTCP,
-			}},
-			Selector: map[string]string{
-				"name": defaultServeHostnameServiceName,
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "windows-tester-",
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:            "ping-pod",
+					Image:           defaultWindowsImage,
+					Command:         []string{"cmd"},
+					Args:            []string{"-c", defaultCmd},
+					SecurityContext: securitycontext.ValidSecurityContextWithContainerDefaults(),
+				},
 			},
+			RestartPolicy: v1.RestartPolicyOnFailure,
 		},
 	}
 )
-
-func CreateValidPod(name, namespace string) *v1.Pod {
-	return &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			UID:       types.UID(name + namespace), // for the purpose of testing, this is unique enough
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: v1.PodSpec{
-			RestartPolicy: v1.RestartPolicyAlways,
-			DNSPolicy:     v1.DNSClusterFirst,
-			Containers: []v1.Container{
-				{
-					Name:                     "nanotest",
-					Image:                    "microsoft/nanoserver:latest",
-					ImagePullPolicy:          "IfNotPresent",
-					SecurityContext:          securitycontext.ValidSecurityContextWithContainerDefaults(),
-					TerminationMessagePolicy: v1.TerminationMessageReadFile,
-				},
-			},
-		},
-	}
-}
 
 var _ = SIGDescribe("Services", func() {
 	f := framework.NewDefaultFramework("services")
@@ -106,14 +88,25 @@ var _ = SIGDescribe("Services", func() {
 		By("creating pod to be part of service " + serviceName)
 		jig.RunOrFail(ns, nil)
 
-		By("creating testing pod")
-		CreateValidPod("nanotest", ns)
-		curl := fmt.Sprintf("curl.exe -s -o /dev/null -w \"%{http_code}\" http://%v:%v", nodeIP, nodePort)
-		cmd := []string{"cmd", "/c", curl}
-		stdout, _, err := f.ExecCommandInContainerWithFullOutput("nanotest", "nanotest", cmd...)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(stdout).To(Equal("200"))
+		By(fmt.Sprintf("creating testing pod to curl http://%s:%d", nodeIP, nodePort))
+		windowsSelector := map[string]string{"beta.kubernetes.io/os": "windows"}
+		winPodSpec := defaultWindowsPod.DeepCopy()
+		winPodSpec.Spec.NodeSelector = windowsSelector
+		curl := fmt.Sprintf("curl.exe -s -o /dev/null -w \"%%{http_code}\" http://%s:%d", nodeIP, nodePort)
+		winPodSpec.Spec.Containers[0].Args = []string{"cmd", "/c", curl}
+		pod, err := cs.CoreV1().Pods(ns).Create(winPodSpec)
 
+		Expect(err).NotTo(HaveOccurred())
+		err = f.WaitForPodRunning(pod.Name)
+		Expect(err).NotTo(HaveOccurred(),
+			"Error waiting for pod %s to run", pod.Name)
+		logs, err := framework.GetPodLogs(cs, ns, pod.Name, pod.Spec.Containers[0].Name)
+		Expect(err).NotTo(HaveOccurred(),
+			"Error getting logs from pod %s in namespace %s", pod.Name, ns)
+		if !strings.Contains(logs, "200") {
+			Fail("Error getting 200 from NodePort")
+		}
+		framework.Logf("Request made to NodePort and obtained: %s", logs)
 	})
 
 })
