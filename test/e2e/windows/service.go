@@ -68,9 +68,6 @@ var _ = SIGDescribe("Services", func() {
 		cs = f.ClientSet
 	})
 
-	// TODO: Run this test against the userspace proxy and nodes
-	// configured with a default deny firewall to validate that the
-	// proxy whitelists NodePort traffic.
 	It("should be able to create a functioning NodePort service for Windows", func() {
 		serviceName := "nodeport-test"
 		ns := f.Namespace.Name
@@ -95,11 +92,12 @@ var _ = SIGDescribe("Services", func() {
 		curl := fmt.Sprintf("curl.exe -s -o /dev/null -w \"%%{http_code}\" http://%s:%d", nodeIP, nodePort)
 		winPodSpec.Spec.Containers[0].Args = []string{"cmd", "/c", curl}
 		pod, err := cs.CoreV1().Pods(ns).Create(winPodSpec)
-
 		Expect(err).NotTo(HaveOccurred())
+		By("waiting for pod to be running")
 		err = f.WaitForPodRunning(pod.Name)
 		Expect(err).NotTo(HaveOccurred(),
 			"Error waiting for pod %s to run", pod.Name)
+		By("obtaining the logs of the command")
 		logs, err := framework.GetPodLogs(cs, ns, pod.Name, pod.Spec.Containers[0].Name)
 		Expect(err).NotTo(HaveOccurred(),
 			"Error getting logs from pod %s in namespace %s", pod.Name, ns)
