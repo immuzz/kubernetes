@@ -67,7 +67,7 @@ var _ = SIGDescribe("Services", func() {
 	BeforeEach(func() {
 		cs = f.ClientSet
 	})
-
+	//Note(immuzz -> Muzz Imam ) This test will run only for Windows Containers
 	It("should be able to create a functioning NodePort service for Windows", func() {
 		serviceName := "nodeport-test"
 		ns := f.Namespace.Name
@@ -84,7 +84,8 @@ var _ = SIGDescribe("Services", func() {
 
 		By("creating pod to be part of service " + serviceName)
 		jig.RunOrFail(ns, nil)
-
+		
+		// Create a testing pod so we can ping the nodeport from within the cluster
 		By(fmt.Sprintf("creating testing pod to curl http://%s:%d", nodeIP, nodePort))
 		windowsSelector := map[string]string{"beta.kubernetes.io/os": "windows"}
 		winPodSpec := defaultWindowsPod.DeepCopy()
@@ -93,10 +94,12 @@ var _ = SIGDescribe("Services", func() {
 		winPodSpec.Spec.Containers[0].Args = []string{"cmd", "/c", curl}
 		pod, err := cs.CoreV1().Pods(ns).Create(winPodSpec)
 		Expect(err).NotTo(HaveOccurred())
+		
 		By("waiting for pod to be running")
 		err = f.WaitForPodRunning(pod.Name)
 		Expect(err).NotTo(HaveOccurred(),
 			"Error waiting for pod %s to run", pod.Name)
+		
 		By("obtaining the logs of the command")
 		logs, err := framework.GetPodLogs(cs, ns, pod.Name, pod.Spec.Containers[0].Name)
 		Expect(err).NotTo(HaveOccurred(),
